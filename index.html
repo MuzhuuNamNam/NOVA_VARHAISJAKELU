@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="fi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Varhaisjakelu – CSV → TXT & ORD</title>
+    <style>
+      :root{
+        --bg:#0f172a; /* slate-900 */
+        --panel:#111827; /* gray-900 */
+        --muted:#94a3b8; /* slate-400 */
+        --ink:#e5e7eb; /* gray-200 */
+        --accent:#22d3ee; /* cyan-400 */
+        --accent2:#a78bfa; /* violet-400 */
+        --ok:#34d399; /* emerald-400 */
+        --warn:#f59e0b; /* amber-500 */
+        --err:#f87171; /* rose-400 */
+      }
+      html, body {height: 100%;}
+      body{
+        margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: radial-gradient(1200px 800px at 80% -10%, rgba(34,211,238,.08), transparent 60%),
+                    radial-gradient(800px 600px at -10% 10%, rgba(167,139,250,.08), transparent 60%), var(--bg);
+        color: var(--ink);
+      }
+      .container{max-width:1000px; margin:0 auto; padding:32px 20px 64px;}
+      h1{font-size:clamp(24px, 3vw, 34px); margin:0 0 8px; letter-spacing:0.2px}
+      .sub{color:var(--muted); margin-bottom:24px}
+      .grid{display:grid; gap:16px; grid-template-columns: repeat(12, 1fr);}
+      .card{grid-column: span 12; background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:18px;}
+      @media(min-width:860px){ .half{grid-column: span 6;} }
+      .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+      label{font-weight:600}
+      .filebox { border:1.5px dashed rgba(255,255,255,.18); padding:18px; border-radius:14px; background: rgba(255,255,255,.03);} 
+      .filebox.drag{ border-color: var(--accent); background: rgba(34,211,238,.06); }
+      .hint{color:var(--muted); font-size:12px}
+      .btn{ background: linear-gradient(90deg, var(--accent), var(--accent2)); border:0; color:#0b1020; font-weight:800; padding:12px 16px; border-radius:12px; cursor:pointer; }
+      .btn.secondary{ background: none; border:1px solid rgba(255,255,255,.16); color: var(--ink);}      
+      .out{ background:#0b1020; border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:12px; font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; white-space:pre-wrap; color:#cbd5e1; max-height:220px; overflow:auto}
+      .kv{display:grid; grid-template-columns: 180px 1fr; gap:8px; font-family: ui-monospace, monospace; font-size:13px}
+      .kv b{color:#e2e8f0}
+      .badge{display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.16); font-size:12px; color:var(--muted)}
+      .sp{height:8px}
+      .footer{color:var(--muted); font-size:12px; margin-top:24px}
+      .warn{color: var(--warn)}
+      .err{color: var(--err)}
+      .ok{color: var(--ok)}
+      .switch{display:inline-flex; gap:8px; align-items:center}
+      input[type="checkbox"]{ transform: translateY(1px); }
+      .downloads a{display:inline-block; margin-right:10px; margin-bottom:8px;}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Varhaisjakelu – CSV → TXT & ORD</h1>
+      <div class="sub">Pudota <b>CSV</b>, <b>.TXT</b> ja <b>.ORD</b> – saat takaisin muokatut <b>.TXT</b> ja <b>.ORD</b> samannimisinä. CSV-tiedostoa ei palauteta.</div>
+
+      <div class="grid">
+        <section class="card">
+          <div class="grid">
+            <div class="half">
+              <div class="filebox" id="dropzone">
+                <div style="font-weight:700; margin-bottom:6px">Pudota tiedostot tähän</div>
+                <div class="hint">Tarvitaan yksi <b>CSV</b> yksi <b>.TXT</b> ja yksi <b>.ORD-tiedosto</b>.</div>
+                <div class="sp"></div>
+                <div class="row">
+                  <input type="file" id="csv" accept=".csv" />
+                  <input type="file" id="txt" accept=".txt,.TXT" />
+                  <input type="file" id="ord" accept=".ord,.ORD" />
+                </div>
+              </div>
+            </div>
+            <div class="half">
+              <div class="row" style="gap:16px; flex-wrap:wrap">
+                <div class="switch"><input type="checkbox" id="hasHeader"><label for="hasHeader">CSV sisältää otsikkorivin</label></div>
+                <div class="switch"><input type="checkbox" id="autoDelim" checked><label for="autoDelim">Tunnista erotin automaattisesti</label></div>
+                <div class="row">
+                  <label for="delim">Erotin:</label>
+                  <select id="delim" style="background:#0b1020; color:var(--ink); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:6px 8px">
+                    <option value=",">Pilppu (,)</option>
+                    <option value=";">Puolipiste (;)</option>
+                    <option value="\t">Sarkain (TAB)</option>
+                  </select>
+                </div>
+                <div class="switch"><input type="checkbox" id="keepZeroWidth" checked><label for="keepZeroWidth">Säilytä 00-kentän numeron nollat (esim. M007 → M008)</label></div>
+                <div class="switch"><input type="checkbox" id="showPreview" checked><label for="showPreview">Näytä esikatselu</label></div>
+              </div>
+              <div class="sp"></div>
+              <div class="kv" id="meta"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <button class="btn" id="runBtn">Tuota uudet .TXT ja .ORD</button>
+            <button class="btn secondary" id="resetBtn">Tyhjennä</button>
+            <span class="badge" id="status">Valmis</span>
+          </div>
+          <div class="sp"></div>
+          <div class="downloads" id="downloads"></div>
+          <div class="sp"></div>
+          <div id="previewWrap" style="display:none">
+            <div style="font-weight:700; margin-bottom:6px">Esikatselu (ensimmäiset lisäykset)</div>
+            <div class="grid">
+              <div class="half">
+                <div class="badge">TXT-lisäykset</div>
+                <pre class="out" id="txtPreview"></pre>
+              </div>
+              <div class="half">
+                <div class="badge">ORD-lisäykset</div>
+                <pre class="out" id="ordPreview"></pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <details>
+            <summary><b>Ohje</b> – mitä sivu tekee?</summary>
+            <div class="sp"></div>
+            <ul>
+              <li>1. Sivustolle liitetään kolme tiedostoa: CSV-tiedosto, .TXT ja .ORD tiedosto</li>
+              <li>2. Sivusto lukee CSV tiedostosta tiedot ja lisää ne .TXT ja .ORD tiedostoihin oikeaan formaattiin.</li>
+              <li>3. Sivusto tuottaa uudet .TXT ja .ORD tiedostot, joihin on tehty lisäykset.</li>
+              <li>.TXT:n loppuun lisätään jokaisesta CSV-rivistä <b>6 riviä</b>:
+                <pre class="out">
+<b>TXT-tiedoston lisäykset:</b>                 
+00:&lt;juokseva koodi&gt;
+01:&lt;CSV sarake C&gt;
+02:&lt;CSV sarake E&gt;
+03:&lt;CSV sarake G&gt;
+04:&lt;CSV sarake H&gt;
+05:&lt;CSV sarake I&gt;</pre>
+              </li>
+              <li>Juokseva 00-koodi luetaan .TXT:n tietystä merkistä. Sivu lukee jokaisen rivin numeron/kirjain+numeron ja tekee uudet rivit lisäämällä +1 suurimpaan numeroon. esim. 10->11 tai M12->M13.
+                <pre class="out">
+<b>ORD-tiedoston lisäykset merkistä-merkkiin:</b>
+[0–12] : Vakioteksti: "VARHAISJ"
+[12–24]: CSV sarake D
+[24–36]: juokseva koodi (esim. M20)
+[36–43]: CSV sarake F → nollat vasemmalle 4-merkkiseksi (esim. 49 → 0049) KAPPALEMÄÄRÄ
+[43–59]: Vakioteksti: "000000000000002" <b>HUOM lappupohja 2 automaationa</b></pre>
+                Tekstit katkaistaan, jos liian pitkä ja täytetään välilyönneillä kentän leveyteen asti.
+              </li>
+              <li>CSV:n erotin tunnistetaan automaattisesti (pilkku/puolipiste/TAB), tai voit valita itse.</li>
+              <li>Sivu toimii täysin selaimessa – tiedostoja ei lähetetä minnekään.</li>
+            </ul>
+          </details>
+        </section>
+
+        <section class="card">
+          <details>
+            <summary><b>Tekniset huomiot</b></summary>
+            <div class="sp"></div>
+            <ul>
+              <li>Rivinvaihtotyyli (.TXT ja .ORD) säilytetään (CRLF vs LF).</li>
+              <li>Merkistö: sisääntulo ja ulostulot ovat ANSI (Windows-1252).</li>
+            </ul>
+          </details>
+        </section>
+
+        <div class="footer">© 2025 Varhaisjakelun lisäys Nova ohjelmiin - sivusto.</div>
+      </div>
+    </div>
+
+    <script>
+      // ===== Utilities =====
+      const $ = sel => document.querySelector(sel);
+      const statusEl = $('#status');
+      const metaEl = $('#meta');
+      const downloadsEl = $('#downloads');
+      const previewWrap = $('#previewWrap');
+      const txtPreview = $('#txtPreview');
+      const ordPreview = $('#ordPreview');
+
+      const setStatus = (text, cls) => {
+        statusEl.textContent = text;
+        statusEl.className = 'badge ' + (cls || '');
+      };
+
+      function detectNewline(s){ return /\r\n/.test(s) ? '\r\n' : '\n'; }
+
+      function autodetectDelimiter(headerLine){
+        const counts = { ',': (headerLine.match(/,/g)||[]).length, ';': (headerLine.match(/;/g)||[]).length, '\t': (headerLine.match(/\t/g)||[]).length };
+        let best = ','; let max=-1; for(const k in counts){ if(counts[k]>max){ max=counts[k]; best=k; } }
+        return best;
+      }
+
+      function parseCSV(text, delimiter){
+        // RFC 4180-ish minimal parser (quotes, doubled quotes, delimiter variable)
+        const rows = [];
+        let i=0, field='', row=[], inQuotes=false; 
+        const d = delimiter; 
+        while(i < text.length){
+          const c = text[i];
+          if(inQuotes){
+            if(c === '"'){
+              if(text[i+1] === '"'){ field += '"'; i+=2; continue; } // escaped quote
+              inQuotes = false; i++; continue;
+            } else { field += c; i++; continue; }
+          } else {
+            if(c === '"'){ inQuotes = true; i++; continue; }
+            if(c === d){ row.push(field); field=''; i++; continue; }
+            if(c === '\n'){
+              row.push(field); rows.push(row); field=''; row=[]; i++; continue;
+            }
+            if(c === '\r'){
+              // handle CRLF or lone CR
+              if(text[i+1] === '\n'){ i++; } // skip the L in CRLF; main loop will handle the N
+              row.push(field); rows.push(row); field=''; row=[]; i++; continue;
+            }
+            field += c; i++;
+          }
+        }
+        // last field
+        row.push(field); rows.push(row);
+        // remove potential last empty row from trailing newline
+        if(rows.length && rows[rows.length-1].length===1 && rows[rows.length-1][0]==='') rows.pop();
+        return rows;
+      }
+
+      function letterToIndex(letter){
+        const L = (letter||'').trim().toUpperCase();
+        // supports multi-letter like "AA" if ever needed
+        let idx = 0; for(let i=0;i<L.length;i++){ idx = idx*26 + (L.charCodeAt(i)-64); }
+        return idx-1; // zero-based
+      }
+
+      function pad(str, width){
+        str = (str==null? '': String(str));
+        if(str.length > width) return str.slice(0, width);
+        return str + ' '.repeat(width - str.length);
+      }
+
+      function zeroPad(numStr, len){
+        numStr = String(numStr==null?'':numStr).trim();
+        // keep only digits if it's clearly numeric; otherwise leave as-is
+        if(/^\d+$/.test(numStr)){
+          if(numStr.length >= len) return numStr;
+          return '0'.repeat(len - numStr.length) + numStr;
+        }
+        return numStr; // non-numeric, don't mangle
+      }
+
+      function nextCodesFrom(baseCode, count, keepZeros=true){
+        // baseCode like "M19" or "19" or "ABC007" → yields [M20, M21, ...]
+        const m = /^([^0-9]*)([0-9]+)$/.exec(String(baseCode||'').trim());
+        if(!m){
+          throw new Error('00-rivin koodia ei saatu tulkittua: "'+baseCode+'". Odotettiin muotoa kirjain(t) + numero(t) tai pelkkä numero.');
+        }
+        const prefix = m[1] || '';
+        const numStr = m[2];
+        const width = keepZeros ? numStr.length : 0;
+        let n = parseInt(numStr,10);
+        const out = [];
+        for(let i=0;i<count;i++){
+          n+=1;
+          let s = String(n);
+          if(width>0 && s.length < width) s = '0'.repeat(width - s.length) + s;
+          out.push(prefix + s);
+        }
+        return out;
+      }
+
+      function getLast00CodeFromTXT(txt){
+        // Find the last occurrence of a line starting with "00:" and return its value
+        const lines = txt.split(/\r?\n/);
+        let last=null;
+        for(const line of lines){
+          if(line.startsWith('00:')) last = line.slice(3).trim();
+        }
+        return last;
+      }
+
+function getAll00Codes(txt){
+  const out=[]; for(const line of txt.split(/\r?\n/)){
+    if(line.startsWith('00:')){
+      const v=line.slice(3).trim();
+      const m=/^([^0-9]*)([0-9]+)$/.exec(v);
+      if(m) out.push({prefix:m[1]||'', num:parseInt(m[2],10), width:m[2].length});
+    }
+  } return out;
+}
+
+// Prefiksi otetaan viimeisestä 00:sta, mutta numero = suurin kaikista samalla prefiksillä
+function getSeed00CodeFromTXT(txt, keepZeros){
+  const last = getLast00CodeFromTXT(txt);
+  if(!last) throw new Error('TXT:stä ei löytynyt yhtään 00:-riviä.');
+  const m=/^([^0-9]*)([0-9]+)$/.exec(String(last).trim());
+  if(!m) throw new Error('Viimeisen 00-kentän muotoa ei voitu tulkita.');
+  const prefix=m[1]||''; const width=keepZeros ? (m[2]?.length||0) : 0;
+  const all=getAll00Codes(txt).filter(x=>x.prefix===prefix);
+  const maxNum=all.length ? Math.max(...all.map(x=>x.num)) : parseInt(m[2],10);
+  const numStr=String(maxNum).padStart(width,'0');
+  return prefix+numStr; // siemen → seuraava on +1
+}
+
+      // ===== Drag & drop niceties =====
+      const dropzone = document.getElementById('dropzone');
+      ;['dragenter','dragover'].forEach(ev=>dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.add('drag'); }));
+      ;['dragleave','drop'].forEach(ev=>dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.remove('drag'); }));
+      dropzone.addEventListener('drop', e=>{
+        const files = Array.from(e.dataTransfer.files);
+        for(const f of files){
+          if(/\.csv$/i.test(f.name)) document.querySelector('#csv').files = toFileList([f]);
+          else if(/\.txt$/i.test(f.name)) document.querySelector('#txt').files = toFileList([f]);
+          else if(/\.ord$/i.test(f.name)) document.querySelector('#ord').files = toFileList([f]);
+        }
+        refreshMeta();
+      });
+      function toFileList(files){
+        const dt = new DataTransfer(); files.forEach(f=>dt.items.add(f)); return dt.files;
+      }
+
+      // ===== Orchestration =====
+      const inputs = ['#csv','#txt','#ord'].map(s=>document.querySelector(s));
+      inputs.forEach(i=> i.addEventListener('change', refreshMeta));
+      document.querySelector('#autoDelim').addEventListener('change', ()=>{
+        document.querySelector('#delim').disabled = document.querySelector('#autoDelim').checked ? true : false;
+      });
+      document.querySelector('#delim').disabled = true;
+      document.querySelector('#showPreview').addEventListener('change', ()=>{ previewWrap.style.display = document.querySelector('#showPreview').checked ? 'block' : 'none'; });
+      previewWrap.style.display = document.querySelector('#showPreview').checked ? 'block' : 'none';
+
+      function refreshMeta(){
+        downloadsEl.innerHTML='';
+        const csvF = document.querySelector('#csv').files[0];
+        const txtF = document.querySelector('#txt').files[0];
+        const ordF = document.querySelector('#ord').files[0];
+        metaEl.innerHTML='';
+        if(csvF) metaEl.insertAdjacentHTML('beforeend', `<div><b>CSV:</b> ${csvF.name} <span class="hint">(${fmtBytes(csvF.size)})</span></div>`);
+        if(txtF) metaEl.insertAdjacentHTML('beforeend', `<div><b>TXT:</b> ${txtF.name} <span class="hint">(${fmtBytes(txtF.size)})</span></div>`);
+        if(ordF) metaEl.insertAdjacentHTML('beforeend', `<div><b>ORD:</b> ${ordF.name} <span class="hint">(${fmtBytes(ordF.size)})</span></div>`);
+
+        if(txtF){
+          fileToText(txtF).then(t=>{
+            const last = getLast00CodeFromTXT(t);
+            metaEl.insertAdjacentHTML('beforeend', `<div><b>Viimeinen 00-koodi TXT:ssä:</b> <span class="${last? 'ok':'err'}">${last? last : 'ei löytynyt'}</span></div>`);
+          });
+        }
+      }
+
+      function fmtBytes(x){
+        if(!x && x!==0) return '-';
+        if(x<1024) return x+' B';
+        if(x<1024*1024) return (x/1024).toFixed(1)+' kB';
+        return (x/1024/1024).toFixed(1)+' MB';
+      }
+
+      function fileToText(file){
+        return new Promise((res, rej)=>{
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.onerror = () => rej(r.error);
+          r.readAsText(file, 'windows-1252'); // ANSI-luku: ääkköset oikein jo sisään luettaessa
+        });
+      }
+
+      document.querySelector('#resetBtn').addEventListener('click', ()=>{
+        ['#csv','#txt','#ord'].forEach(sel=>{ document.querySelector(sel).value=''; });
+        metaEl.innerHTML='';
+        downloadsEl.innerHTML='';
+        txtPreview.textContent = ordPreview.textContent='';
+        setStatus('Valmis');
+      });
+
+      document.querySelector('#runBtn').addEventListener('click', async ()=>{
+        try{
+          setStatus('Luetaan tiedostot…');
+          const csvF = document.querySelector('#csv').files[0];
+          const txtF = document.querySelector('#txt').files[0];
+          const ordF = document.querySelector('#ord').files[0];
+          if(!csvF || !txtF || !ordF) throw new Error('Tarvitaan CSV, TXT ja ORD.');
+
+          const [csvText, txtText, ordText] = await Promise.all([fileToText(csvF), fileToText(txtF), fileToText(ordF)]);
+
+          const newlineTXT = detectNewline(txtText);
+          const newlineORD = detectNewline(ordText);
+
+          // CSV
+          let firstLine = csvText.split(/\r?\n/)[0] || '';
+          let delimiter = document.querySelector('#autoDelim').checked ? autodetectDelimiter(firstLine) : document.querySelector('#delim').value;
+          document.querySelector('#delim').value = delimiter; // reflect autodetected choice
+
+          const rows = parseCSV(csvText, delimiter);
+          const hasHeader = document.querySelector('#hasHeader').checked;
+          const dataRows = hasHeader ? rows.slice(1) : rows.slice();
+
+          if(!dataRows.length) throw new Error('CSV ei sisällä dataa valinnan jälkeen.');
+
+          // Columns
+          const col = L => letterToIndex(L); // 0-based
+          const IDX = {
+            C: col('C'), E: col('E'), G: col('G'), H: col('H'), I: col('I'), D: col('D'), F: col('F')
+          };
+
+          // Read base 00-code
+          const seed00 = getSeed00CodeFromTXT(txtText, document.querySelector('#keepZeroWidth').checked);
+          const codes  = nextCodesFrom(seed00, dataRows.length, document.querySelector('#keepZeroWidth').checked);
+
+          // Build TXT additions (poistettu tyhjä rivi pakettien välistä)
+          const txtAddLines = [];
+          for(let i=0;i<dataRows.length;i++){
+            const r = dataRows[i];
+            const L00 = '00:' + codes[i];
+            const L01 = '01:' + safe(r[IDX.C]);
+            const L02 = '02:' + safe(r[IDX.E]);
+            const L03 = '03:' + safe(r[IDX.G]);
+            const L04 = '04:' + safe(r[IDX.H]);
+            const L05 = '05:' + safe(r[IDX.I]);
+            txtAddLines.push([L00,L01,L02,L03,L04,L05].join(newlineTXT));
+          }
+          const txtOut = (txtText.endsWith('\n') || txtText.endsWith('\r') ? txtText : txtText + newlineTXT) + txtAddLines.join(newlineTXT) + newlineTXT;
+
+          // Build ORD additions
+          const W = { A:12, B:12, C:12, D:7, E:15 };
+          const ordAddLines = [];
+          for(let i=0;i<dataRows.length;i++){
+            const r = dataRows[i];
+            const partA = pad('VARHAISJ', W.A);
+            const partB = pad(safe(r[IDX.D]), W.B);
+            const partC = pad(codes[i], W.C);
+            const fRaw = safe(r[IDX.F]);
+            const f4 = zeroPad(fRaw, 4);
+            const partD = pad(f4, W.D);
+            const partE = '000000000000002';
+            const line = partA + partB + partC + partD + partE;
+            ordAddLines.push(line);
+          }
+          const ordOut = (ordText.endsWith('\n') || ordText.endsWith('\r') ? ordText : ordText + newlineORD) + ordAddLines.join(newlineORD) + newlineORD;
+
+          // Downloads
+          setStatus('Valmis', 'ok');
+          downloadsEl.innerHTML = '';
+          makeDownload(txtOut, txtF.name, 'txt');
+          makeDownload(ordOut, ordF.name, 'ord');
+
+          if(document.querySelector('#showPreview').checked){
+            txtPreview.textContent = txtAddLines.slice(0,2).join('\n');
+            ordPreview.textContent = ordAddLines.slice(0,5).join('\n');
+          }
+        } catch(err){
+          console.error(err);
+          setStatus(err.message || String(err), 'err');
+        }
+      });
+
+      function safe(x){ return (x==null? '' : String(x)).trim(); }
+
+      // Unicode → Windows-1252 (ANSI)
+      function encodeWindows1252(str){
+        const extra = {0x20AC:0x80,0x201A:0x82,0x0192:0x83,0x201E:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x02C6:0x88,0x2030:0x89,0x0160:0x8A,0x2039:0x8B,0x0152:0x8C,0x017D:0x8E,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,0x02DC:0x98,0x2122:0x99,0x0161:0x9A,0x203A:0x9B,0x0153:0x9C,0x017E:0x9E,0x0178:0x9F};
+        const bytes=[];
+        for(const ch of str){
+          const c=ch.codePointAt(0);
+          if(c<=0xFF) bytes.push(c);
+          else if(extra[c]!==undefined) bytes.push(extra[c]);
+          else bytes.push(0x3F); // '?'
+        }
+        return new Uint8Array(bytes);
+      }
+
+      function makeDownload(text, filename){
+        // Tallenna aina ANSI (Windows-1252)
+        const bytes = encodeWindows1252(text);
+        const blob  = new Blob([bytes], {type:'text/plain'});
+        const url   = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.textContent = 'Lataa ' + filename;
+        a.className = 'btn secondary';
+        downloadsEl.appendChild(a);
+}
+    </script>
+  </body>
+</html>
