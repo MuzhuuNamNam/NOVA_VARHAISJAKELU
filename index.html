@@ -452,8 +452,8 @@ function getSeed00CodeFromTXT(txt, keepZeros){
           makeDownload(ordOut, ordF.name, 'ord');
 
           if(document.querySelector('#showPreview').checked){
-            txtPreview.textContent = txtAddLines.slice(0,2).join('\n');
-            ordPreview.textContent = ordAddLines.slice(0,5).join('\n');
+            txtPreview.textContent = txtAddLines.join('\n');
+            ordPreview.textContent = ordAddLines.join('\n');
           }
         } catch(err){
           console.error(err);
