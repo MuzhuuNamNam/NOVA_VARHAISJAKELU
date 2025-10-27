@@ -73,16 +73,17 @@
             <div class="half">
               <div class="row" style="gap:16px; flex-wrap:wrap">
                 <div class="switch"><input type="checkbox" id="hasHeader"><label for="hasHeader">CSV sisältää otsikkorivin</label></div>
-                <div class="switch"><input type="checkbox" id="autoDelim" checked><label for="autoDelim">Tunnista erotin automaattisesti</label></div>
                 <div class="row">
-                  <label for="delim">Erotin:</label>
-                  <select id="delim" style="background:#0b1020; color:var(--ink); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:6px 8px">
-                    <option value=",">Pilppu (,)</option>
-                    <option value=";">Puolipiste (;)</option>
-                    <option value="\t">Sarkain (TAB)</option>
-                  </select>
+                  <label for="ordPrefix">ORD alku [merkit 0–12]:</label>
+                  <input id="ordPrefix" type="text" value="VARHAISJ" maxlength="12"
+                        style="background:#0b1020; color:var(--ink); border:1px solid rgba(255,255,255,.16);
+                              border-radius:8px; padding:6px 8px; width:200px" />
+                <div class="row">
+                    <label>Lappupohja:</label>
+                    <label class="switch"><input type="radio" name="ordEnd" value="2" checked> 2</label>
+                    <label class="switch"><input type="radio" name="ordEnd" value="0"> 0</label>
                 </div>
-                <div class="switch"><input type="checkbox" id="keepZeroWidth" checked><label for="keepZeroWidth">Säilytä 00-kentän numeron nollat (esim. M007 → M008)</label></div>
+                </div>
                 <div class="switch"><input type="checkbox" id="showPreview" checked><label for="showPreview">Näytä esikatselu</label></div>
               </div>
               <div class="sp"></div>
@@ -325,10 +326,6 @@ function getSeed00CodeFromTXT(txt, keepZeros){
       // ===== Orchestration =====
       const inputs = ['#csv','#txt','#ord'].map(s=>document.querySelector(s));
       inputs.forEach(i=> i.addEventListener('change', refreshMeta));
-      document.querySelector('#autoDelim').addEventListener('change', ()=>{
-        document.querySelector('#delim').disabled = document.querySelector('#autoDelim').checked ? true : false;
-      });
-      document.querySelector('#delim').disabled = true;
       document.querySelector('#showPreview').addEventListener('change', ()=>{ previewWrap.style.display = document.querySelector('#showPreview').checked ? 'block' : 'none'; });
       previewWrap.style.display = document.querySelector('#showPreview').checked ? 'block' : 'none';
 
@@ -389,8 +386,7 @@ function getSeed00CodeFromTXT(txt, keepZeros){
 
           // CSV
           let firstLine = csvText.split(/\r?\n/)[0] || '';
-          let delimiter = document.querySelector('#autoDelim').checked ? autodetectDelimiter(firstLine) : document.querySelector('#delim').value;
-          document.querySelector('#delim').value = delimiter; // reflect autodetected choice
+          let delimiter = autodetectDelimiter(firstLine);
 
           const rows = parseCSV(csvText, delimiter);
           // Normalisoi kaikki solut (poista “haamumerkit”)
@@ -411,8 +407,10 @@ function getSeed00CodeFromTXT(txt, keepZeros){
           };
 
           // Read base 00-code
-          const seed00 = getSeed00CodeFromTXT(txtText, document.querySelector('#keepZeroWidth').checked);
-          const codes  = nextCodesFrom(seed00, dataRows.length, document.querySelector('#keepZeroWidth').checked);
+          const seed00 = getSeed00CodeFromTXT(txtText, true);
+          const codes  = nextCodesFrom(seed00, dataRows.length, true);
+
+
 
           // Build TXT additions (poistettu tyhjä rivi pakettien välistä)
           const txtAddLines = [];
@@ -433,13 +431,15 @@ function getSeed00CodeFromTXT(txt, keepZeros){
           const ordAddLines = [];
           for(let i=0;i<dataRows.length;i++){
             const r = dataRows[i];
-            const partA = pad('VARHAISJ', W.A);
+            const ordPrefix = safe((document.querySelector('#ordPrefix')?.value) || 'VARHAISJ').slice(0, W.A);
+            const partA = pad(ordPrefix, W.A);
             const partB = pad(safe(r[IDX.D]), W.B);
             const partC = pad(codes[i], W.C);
             const fRaw = safe(r[IDX.F]);
             const f4 = zeroPad(fRaw, 4);
             const partD = pad(f4, W.D);
-            const partE = '000000000000002';
+            const ordEnd = (document.querySelector('input[name="ordEnd"]:checked') || {}).value || '2';
+            const partE  = '0'.repeat(14) + ordEnd;  // yhteensä 15 merkkiä: 14 nollaa + valittu loppumerkki
             const line = partA + partB + partC + partD + partE;
             ordAddLines.push(line);
           }
