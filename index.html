@@ -82,6 +82,10 @@
                     <label>Lappupohja:</label>
                     <label class="switch"><input type="radio" name="ordEnd" value="2" checked> 2</label>
                     <label class="switch"><input type="radio" name="ordEnd" value="0"> 0</label>
+                <div class="switch">
+                    <input type="checkbox" id="csvOnlyMode">
+                    <label for="csvOnlyMode">Luo tiedostot pelkän CSV tiedoston avulla</label>
+                </div>
                 </div>
                 </div>
                 <div class="switch"><input type="checkbox" id="showPreview" checked><label for="showPreview">Näytä esikatselu</label></div>
@@ -374,15 +378,23 @@ function getSeed00CodeFromTXT(txt, keepZeros){
       document.querySelector('#runBtn').addEventListener('click', async ()=>{
         try{
           setStatus('Luetaan tiedostot…');
-          const csvF = document.querySelector('#csv').files[0];
-          const txtF = document.querySelector('#txt').files[0];
-          const ordF = document.querySelector('#ord').files[0];
-          if(!csvF || !txtF || !ordF) throw new Error('Tarvitaan CSV, TXT ja ORD.');
+            const csvF = document.querySelector('#csv').files[0];
+            const txtF = document.querySelector('#txt').files[0];
+            const ordF = document.querySelector('#ord').files[0];
+            const csvOnlyMode = document.querySelector('#csvOnlyMode').checked;
 
-          const [csvText, txtText, ordText] = await Promise.all([fileToText(csvF), fileToText(txtF), fileToText(ordF)]);
+            if (!csvF) throw new Error('Tarvitaan vähintään CSV-tiedosto.');
 
-          const newlineTXT = detectNewline(txtText);
-          const newlineORD = detectNewline(ordText);
+            if (!csvOnlyMode && (!txtF || !ordF)) {
+              throw new Error('Tarvitaan CSV, TXT ja ORD. Tai käytä valintaa: "Luo tiedostot pelkän CSV tiedoston avulla".');
+}
+
+          const csvText = await fileToText(csvF);
+          const txtText = csvOnlyMode ? '' : await fileToText(txtF);
+          const ordText = csvOnlyMode ? '' : await fileToText(ordF);
+
+          const newlineTXT = csvOnlyMode ? '\r\n' : detectNewline(txtText);
+          const newlineORD = csvOnlyMode ? '\r\n' : detectNewline(ordText);
 
           // CSV
           let firstLine = csvText.split(/\r?\n/)[0] || '';
@@ -407,8 +419,14 @@ function getSeed00CodeFromTXT(txt, keepZeros){
           };
 
           // Read base 00-code
-          const seed00 = getSeed00CodeFromTXT(txtText, true);
-          const codes  = nextCodesFrom(seed00, dataRows.length, true);
+          let codes;
+
+          if (csvOnlyMode) {
+            codes = nextCodesFrom('0', dataRows.length, true);
+          } else {
+            const seed00 = getSeed00CodeFromTXT(txtText, true);
+            codes = nextCodesFrom(seed00, dataRows.length, true);
+          }
 
 
 
@@ -424,7 +442,9 @@ function getSeed00CodeFromTXT(txt, keepZeros){
             const L05 = '05:' + safe(r[IDX.I]);
             txtAddLines.push([L00,L01,L02,L03,L04,L05].join(newlineTXT));
           }
-          const txtOut = (txtText.endsWith('\n') || txtText.endsWith('\r') ? txtText : txtText + newlineTXT) + txtAddLines.join(newlineTXT) + newlineTXT;
+          const txtOut = csvOnlyMode
+            ? txtAddLines.join(newlineTXT) + newlineTXT
+            : (txtText.endsWith('\n') || txtText.endsWith('\r') ? txtText : txtText + newlineTXT) + txtAddLines.join(newlineTXT) + newlineTXT;
 
           // Build ORD additions
           const W = { A:12, B:12, C:12, D:7, E:15 };
@@ -443,13 +463,21 @@ function getSeed00CodeFromTXT(txt, keepZeros){
             const line = partA + partB + partC + partD + partE;
             ordAddLines.push(line);
           }
-          const ordOut = (ordText.endsWith('\n') || ordText.endsWith('\r') ? ordText : ordText + newlineORD) + ordAddLines.join(newlineORD) + newlineORD;
+          const ordOut = csvOnlyMode
+            ? ordAddLines.join(newlineORD) + newlineORD
+            : (ordText.endsWith('\n') || ordText.endsWith('\r') ? ordText : ordText + newlineORD) + ordAddLines.join(newlineORD) + newlineORD;
 
           // Downloads
           setStatus('Valmis', 'ok');
           downloadsEl.innerHTML = '';
-          makeDownload(txtOut, txtF.name, 'txt');
-          makeDownload(ordOut, ordF.name, 'ord');
+          if (csvOnlyMode) {
+            const baseName = csvF.name.replace(/\.[^.]+$/i, '');
+            makeDownload(txtOut, baseName + '.TXT');
+            makeDownload(ordOut, baseName + '.ORD');
+          } else {
+            makeDownload(txtOut, txtF.name);
+            makeDownload(ordOut, ordF.name);
+          }
 
           if(document.querySelector('#showPreview').checked){
             txtPreview.textContent = txtAddLines.join('\n');
