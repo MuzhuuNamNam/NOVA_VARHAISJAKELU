@@ -61,12 +61,17 @@
             <div class="half">
               <div class="filebox" id="dropzone">
                 <div style="font-weight:700; margin-bottom:6px">Pudota tiedostot tähän</div>
-                <div class="hint">Tarvitaan yksi <b>CSV</b>, yksi <b>.TXT</b> ja yksi <b>.ORD-tiedosto</b>.</div>
+                <div class="hint" id="dropHint">Tarvitaan yksi <b>CSV</b> (esim. NOVA TESTI VARHAISJAKELU 2.csv), yksi <b>.TXT</b> ja yksi <b>.ORD</b>.</div>
+                <div id="csvOnlyInfo" class="hint" style="display:none; margin-top:8px; color:#93c5fd; font-weight:600;">
+                  CSV-only-tila käytössä: tarvitset vain CSV-tiedoston. TXT-, ORD- ja HD-tiedostot luodaan automaattisesti.
+                </div>
                 <div class="sp"></div>
                 <div class="row">
                   <input type="file" id="csv" accept=".csv," />
                   <input type="file" id="txt" accept=".txt,.TXT" />
+                  <span id="txtDisabledNote" class="hint" style="display:none;">Ei tarvita csvOnly-tilassa</span>
                   <input type="file" id="ord" accept=".ord,.ORD" />
+                  <span id="ordDisabledNote" class="hint" style="display:none;">Ei tarvita csvOnly-tilassa</span>
                 </div>
               </div>
             </div>
@@ -98,7 +103,7 @@
 
         <section class="card">
           <div class="row">
-            <button class="btn" id="runBtn">Tuota uudet .TXT ja .ORD</button>
+            <button class="btn" id="runBtn">Tuota uudet .TXT ja .ORD (.HD myös, jos luot pelkän CSV tiedoston kautta)</button>
             <button class="btn secondary" id="resetBtn">Tyhjennä</button>
             <span class="badge" id="status">Valmis</span>
           </div>
@@ -326,12 +331,69 @@ function getSeed00CodeFromTXT(txt, keepZeros){
       function toFileList(files){
         const dt = new DataTransfer(); files.forEach(f=>dt.items.add(f)); return dt.files;
       }
+function updateCsvOnlyUI(){
+  const csvOnlyMode = document.querySelector('#csvOnlyMode')?.checked;
 
+  const dropHint = document.querySelector('#dropHint');
+  const csvOnlyInfo = document.querySelector('#csvOnlyInfo');
+  const txtInput = document.querySelector('#txt');
+  const ordInput = document.querySelector('#ord');
+  const txtDisabledNote = document.querySelector('#txtDisabledNote');
+  const ordDisabledNote = document.querySelector('#ordDisabledNote');
+  const runBtn = document.querySelector('#runBtn');
+
+  if (csvOnlyMode) {
+    if (dropHint) {
+      dropHint.innerHTML = 'Tarvitaan vain yksi <b>CSV</b>-tiedosto. <b>.TXT</b>, <b>.ORD</b> ja <b>.HD</b> luodaan automaattisesti.';
+    }
+    if (csvOnlyInfo) csvOnlyInfo.style.display = 'block';
+
+    if (txtInput) {
+      txtInput.disabled = true;
+      txtInput.style.opacity = '0.45';
+      txtInput.style.pointerEvents = 'none';
+    }
+    if (ordInput) {
+      ordInput.disabled = true;
+      ordInput.style.opacity = '0.45';
+      ordInput.style.pointerEvents = 'none';
+    }
+
+    if (txtDisabledNote) txtDisabledNote.style.display = 'inline';
+    if (ordDisabledNote) ordDisabledNote.style.display = 'inline';
+
+    if (runBtn) runBtn.textContent = 'Tuota .TXT, .ORD ja .HD tiedosto';
+  } else {
+    if (dropHint) {
+      dropHint.innerHTML = 'Tarvitaan yksi <b>CSV</b> (esim. NOVA TESTI VARHAISJAKELU 2.csv), yksi <b>.TXT</b> ja yksi <b>.ORD</b>.';
+    }
+    if (csvOnlyInfo) csvOnlyInfo.style.display = 'none';
+
+    if (txtInput) {
+      txtInput.disabled = false;
+      txtInput.style.opacity = '';
+      txtInput.style.pointerEvents = '';
+    }
+    if (ordInput) {
+      ordInput.disabled = false;
+      ordInput.style.opacity = '';
+      ordInput.style.pointerEvents = '';
+    }
+
+    if (txtDisabledNote) txtDisabledNote.style.display = 'none';
+    if (ordDisabledNote) ordDisabledNote.style.display = 'none';
+
+    if (runBtn) runBtn.textContent = 'Tuota uudet .TXT ja .ORD';
+  }
+}
       // ===== Orchestration =====
       const inputs = ['#csv','#txt','#ord'].map(s=>document.querySelector(s));
       inputs.forEach(i=> i.addEventListener('change', refreshMeta));
       document.querySelector('#showPreview').addEventListener('change', ()=>{ previewWrap.style.display = document.querySelector('#showPreview').checked ? 'block' : 'none'; });
       previewWrap.style.display = document.querySelector('#showPreview').checked ? 'block' : 'none';
+      document.querySelector('#csvOnlyMode').addEventListener('change', updateCsvOnlyUI);
+      updateCsvOnlyUI();
+
 
       function refreshMeta(){
         downloadsEl.innerHTML='';
@@ -466,14 +528,31 @@ function getSeed00CodeFromTXT(txt, keepZeros){
           const ordOut = csvOnlyMode
             ? ordAddLines.join(newlineORD) + newlineORD
             : (ordText.endsWith('\n') || ordText.endsWith('\r') ? ordText : ordText + newlineORD) + ordAddLines.join(newlineORD) + newlineORD;
+            //HD TIEDOSTON LUONTI
+            let hdOut = '';
 
-          // Downloads
+          if (csvOnlyMode) {
+            const baseName = csvF.name.replace(/\.[^.]+$/i, '');
+
+            hdOut =
+              'DESCRIPTION:' + baseName + newlineTXT +
+              'DATE:XX.XX.XX' + newlineTXT +
+              'GLOBALMSG:P1C' + newlineTXT +
+              'STANDARDBUNDLE:100' + newlineTXT +
+              'BATCHINBUNDLE:5' + newlineTXT +
+              'MINBATCH:11' + newlineTXT +
+              'SPLITPARAM:15' + newlineTXT +
+              'MAXBATCH:21' + newlineTXT +
+              'METHOD:FREE' + newlineTXT;
+          }
+            // Downloads
           setStatus('Valmis', 'ok');
           downloadsEl.innerHTML = '';
           if (csvOnlyMode) {
             const baseName = csvF.name.replace(/\.[^.]+$/i, '');
             makeDownload(txtOut, baseName + '.TXT');
             makeDownload(ordOut, baseName + '.ORD');
+            makeDownload(hdOut,  baseName + '.HD');
           } else {
             makeDownload(txtOut, txtF.name);
             makeDownload(ordOut, ordF.name);
